@@ -10,9 +10,14 @@
 
 `docker run -it --rm -v "$(pwd)":/data arduino` this command runs the docker image built on previous step and shares the current project folder to `/data` directory inside docker image and will connect you to inside the docker image.
 
+### Running Arduino UI (linux only)
+
+`docker run -it --rm -v "$(pwd)":/data -e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix --net=host arduino` this command runs the docker image built on previous step and shares host X11 with docker image so it can start Arduino UI
+
 ## Building inside Docker image
 
-`cd build && ant clean dist` this command will build Arduino and 
+`cd build && ant run` this command will build and start Arduino
 
 ## Exporting built runnable
+
 
