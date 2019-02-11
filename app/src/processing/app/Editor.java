@@ -35,7 +35,6 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
@@ -133,11 +132,18 @@ public class Editor extends JFrame implements RunnerListener {
     }
   }
 
-  private static class ShouldSaveReadOnly implements Predicate<SketchController> {
+  private static class CanExportInSketchFolder
+      implements Predicate<SketchController> {
 
     @Override
-    public boolean test(SketchController sketch) {
-      return sketch.isReadOnly();
+    public boolean test(SketchController controller) {
+      if (controller.isReadOnly()) {
+        return false;
+      }
+      if (controller.getSketch().isModified()) {
+        return PreferencesData.getBoolean("editor.save_on_verify");
+      }
+      return true;
     }
   }
 
@@ -226,8 +232,8 @@ public class Editor extends JFrame implements RunnerListener {
   Runnable presentHandler;
   private Runnable runAndSaveHandler;
   private Runnable presentAndSaveHandler;
-  Runnable exportHandler;
-  private Runnable exportAppHandler;
+  private UploadHandler uploadHandler;
+  private UploadHandler uploadUsingProgrammerHandler;
   private Runnable timeoutUploadHandler;
 
   private Map<String, Tool> internalToolCache = new HashMap<String, Tool>();
@@ -666,11 +672,12 @@ public class Editor extends JFrame implements RunnerListener {
 
     item = newJMenuItemAlt(tr("Export compiled Binary"), 'S');
     item.addActionListener(event -> {
-      if (new ShouldSaveReadOnly().test(sketchController) && !handleSave(true)) {
+      if (!(new CanExportInSketchFolder().test(sketchController))) {
         System.out.println(tr("Export canceled, changes must first be saved."));
         return;
       }
-      handleRun(false, new ShouldSaveReadOnly(), presentAndSaveHandler, runAndSaveHandler);
+      handleRun(false, new CanExportInSketchFolder(), presentAndSaveHandler, runAndSaveHandler);
+
     });
     sketchMenu.add(item);
 
@@ -983,21 +990,6 @@ public class Editor extends JFrame implements RunnerListener {
   }
 
 
-  class SerialMenuListener implements ActionListener {
-
-    private final String serialPort;
-
-    public SerialMenuListener(String serialPort) {
-      this.serialPort = serialPort;
-    }
-
-    public void actionPerformed(ActionEvent e) {
-      selectSerialPort(serialPort);
-      base.onBoardOrPortChange();
-    }
-
-  }
-
   private void selectSerialPort(String name) {
     if(portMenu == null) {
       System.out.println(tr("serialMenu is null"));
@@ -1045,6 +1037,24 @@ public class Editor extends JFrame implements RunnerListener {
     //System.out.println("set to " + get("serial.port"));
   }
 
+  class BoardPortJCheckBoxMenuItem extends JCheckBoxMenuItem {
+    private BoardPort port;
+
+    public BoardPortJCheckBoxMenuItem(BoardPort port) {
+      super(port.getLabel());
+      addActionListener(e -> {
+        selectSerialPort(port.getAddress());
+        base.onBoardOrPortChange();
+      });
+      this.port = port;
+    }
+
+    @Override
+    public String toString() {
+      // This is required for serialPrompt()
+      return port.getLabel();
+    }
+  }
 
   private void populatePortMenu() {
     portMenu.removeAll();
@@ -1058,7 +1068,8 @@ public class Editor extends JFrame implements RunnerListener {
     Collections.sort(ports, new Comparator<BoardPort>() {
       @Override
       public int compare(BoardPort o1, BoardPort o2) {
-        return BOARD_PROTOCOLS_ORDER.indexOf(o1.getProtocol()) - BOARD_PROTOCOLS_ORDER.indexOf(o2.getProtocol());
+        return (BOARD_PROTOCOLS_ORDER.indexOf(o1.getProtocol()) - BOARD_PROTOCOLS_ORDER.indexOf(o2.getProtocol())) * 10 +
+               o1.getAddress().compareTo(o2.getAddress());
       }
     });
 
@@ -1081,10 +1092,9 @@ public class Editor extends JFrame implements RunnerListener {
         portMenu.add(lastProtocolMenuItem);
       }
       String address = port.getAddress();
-      String label = port.getLabel();
 
-      JCheckBoxMenuItem item = new JCheckBoxMenuItem(label, address.equals(selectedPort));
-      item.addActionListener(new SerialMenuListener(address));
+      BoardPortJCheckBoxMenuItem item = new BoardPortJCheckBoxMenuItem(port);
+      item.setSelected(address.equals(selectedPort));
       portMenu.add(item);
     }
 
@@ -1376,8 +1386,10 @@ public class Editor extends JFrame implements RunnerListener {
     presentHandler = new BuildHandler(true);
     runAndSaveHandler = new BuildHandler(false, true);
     presentAndSaveHandler = new BuildHandler(true, true);
-    exportHandler = new DefaultExportHandler();
-    exportAppHandler = new DefaultExportAppHandler();
+    uploadHandler = new UploadHandler();
+    uploadHandler.setUsingProgrammer(false);
+    uploadUsingProgrammerHandler = new UploadHandler();
+    uploadUsingProgrammerHandler.setUsingProgrammer(true);
     timeoutUploadHandler = new TimeoutUploadHandler();
   }
 
@@ -1953,31 +1965,29 @@ public class Editor extends JFrame implements RunnerListener {
 
 
   private boolean serialPrompt() {
-    int count = portMenu.getItemCount();
-    Object[] names = new Object[count];
-    for (int i = 0; i < count; i++) {
-      names[i] = portMenu.getItem(i).getText();
+    List<BoardPortJCheckBoxMenuItem> items = new ArrayList<>();
+    for (int i = 0; i < portMenu.getItemCount(); i++) {
+      if (portMenu.getItem(i) instanceof BoardPortJCheckBoxMenuItem)
+        items.add((BoardPortJCheckBoxMenuItem) portMenu.getItem(i));
     }
 
-    // FIXME: This is horribly unreadable
-    String result = (String)
-    JOptionPane.showInputDialog(this,
-     I18n.format(
-      tr("Serial port {0} not found.\n" +
-       "Retry the upload with another serial port?"),
-      PreferencesData.get("serial.port")
-     ),
-     "Serial port not found",
-     JOptionPane.PLAIN_MESSAGE,
-     null,
-     names,
-     0);
-    if (result == null) return false;
-    selectSerialPort(result);
+    String port = PreferencesData.get("serial.port");
+    String title;
+    if (port == null || port.isEmpty()) {
+      title = tr("Serial port not selected.");
+    } else {
+      title = I18n.format(tr("Serial port {0} not found."), port);
+    }
+    String question = tr("Retry the upload with another serial port?");
+    BoardPortJCheckBoxMenuItem result = (BoardPortJCheckBoxMenuItem) JOptionPane
+        .showInputDialog(this, title + "\n" + question, title,
+                         JOptionPane.PLAIN_MESSAGE, null, items.toArray(), 0);
+    if (result == null)
+      return false;
+    result.doClick();
     base.onBoardOrPortChange();
     return true;
   }
-
 
   /**
    * Called by Sketch &rarr; Export.
@@ -2007,13 +2017,17 @@ public class Editor extends JFrame implements RunnerListener {
     avoidMultipleOperations = true;
 
     new Thread(timeoutUploadHandler).start();
-    new Thread(usingProgrammer ? exportAppHandler : exportHandler).start();
+    new Thread(usingProgrammer ? uploadUsingProgrammerHandler : uploadHandler).start();
   }
 
-  // DAM: in Arduino, this is upload
-  class DefaultExportHandler implements Runnable {
-    public void run() {
+  class UploadHandler implements Runnable {
+    boolean usingProgrammer = false;
 
+    public void setUsingProgrammer(boolean usingProgrammer) {
+      this.usingProgrammer = usingProgrammer;
+    }
+
+    public void run() {
       try {
         removeAllLineHighlights();
         if (serialMonitor != null) {
@@ -2025,14 +2039,20 @@ public class Editor extends JFrame implements RunnerListener {
 
         uploading = true;
 
-        boolean success = sketchController.exportApplet(false);
+        boolean success = sketchController.exportApplet(usingProgrammer);
         if (success) {
           statusNotice(tr("Done uploading."));
         }
       } catch (SerialNotFoundException e) {
-        if (portMenu.getItemCount() == 0) statusError(e);
-        else if (serialPrompt()) run();
-        else statusNotice(tr("Upload canceled."));
+        if (portMenu.getItemCount() == 0) {
+          statusError(tr("Serial port not selected."));
+        } else {
+          if (serialPrompt()) {
+            run();
+          } else {
+            statusNotice(tr("Upload canceled."));
+          }
+        }
       } catch (PreferencesMapException e) {
         statusError(I18n.format(
                     tr("Error while uploading: missing '{0}' configuration parameter"),
@@ -2106,55 +2126,6 @@ public class Editor extends JFrame implements RunnerListener {
         statusError(e);
       }
    }
-  }
-
-  // DAM: in Arduino, this is upload (with verbose output)
-  class DefaultExportAppHandler implements Runnable {
-    public void run() {
-
-      try {
-        if (serialMonitor != null) {
-          serialMonitor.suspend();
-        }
-        if (serialPlotter != null) {
-          serialPlotter.suspend();
-        }
-
-        uploading = true;
-
-        boolean success = sketchController.exportApplet(true);
-        if (success) {
-          statusNotice(tr("Done uploading."));
-        }
-      } catch (SerialNotFoundException e) {
-        if (portMenu.getItemCount() == 0) statusError(e);
-        else if (serialPrompt()) run();
-        else statusNotice(tr("Upload canceled."));
-      } catch (PreferencesMapException e) {
-        statusError(I18n.format(
-                    tr("Error while uploading: missing '{0}' configuration parameter"),
-                    e.getMessage()));
-      } catch (RunnerException e) {
-        //statusError("Error during upload.");
-        //e.printStackTrace();
-        status.unprogress();
-        statusError(e);
-      } catch (Exception e) {
-        e.printStackTrace();
-      } finally {
-        avoidMultipleOperations = false;
-        populatePortMenu();
-      }
-      status.unprogress();
-      uploading = false;
-      //toolbar.clear();
-      toolbar.deactivateExport();
-
-      resumeOrCloseSerialMonitor();
-      resumeOrCloseSerialPlotter();
-
-      base.onBoardOrPortChange();
-    }
   }
 
   class TimeoutUploadHandler implements Runnable {
@@ -2388,6 +2359,8 @@ public class Editor extends JFrame implements RunnerListener {
           SwingUtilities.invokeLater(() -> statusError(tr("Error while burning bootloader.")));
           // error message will already be visible
         }
+      } catch (SerialNotFoundException e) {
+        SwingUtilities.invokeLater(() -> statusError(tr("Error while burning bootloader: please select a serial port.")));
       } catch (PreferencesMapException e) {
         SwingUtilities.invokeLater(() -> {
           statusError(I18n.format(

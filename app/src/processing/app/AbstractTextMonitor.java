@@ -43,13 +43,10 @@ public abstract class AbstractTextMonitor extends AbstractMonitor {
   protected JComboBox lineEndings;
   protected JComboBox serialRates;
 
-  private SimpleDateFormat logDateFormat;
-  
   public AbstractTextMonitor(BoardPort boardPort) {
     super(boardPort);
-    logDateFormat = new SimpleDateFormat("HH:mm:ss.SSS -> ");
   }
-  
+
   protected void onCreateWindow(Container mainPane) {
     Font consoleFont = Theme.getFont("console.font");
     Font editorFont = PreferencesData.getFont("editor.font");
@@ -57,7 +54,7 @@ public abstract class AbstractTextMonitor extends AbstractMonitor {
 
     mainPane.setLayout(new BorderLayout());
 
-    textArea = new TextAreaFIFO(8000000);
+    textArea = new TextAreaFIFO(8_000_000);
     textArea.setRows(16);
     textArea.setColumns(40);
     textArea.setEditable(false);
@@ -70,7 +67,7 @@ public abstract class AbstractTextMonitor extends AbstractMonitor {
     scrollPane = new JScrollPane(textArea);
 
     mainPane.add(scrollPane, BorderLayout.CENTER);
-  
+
     JPanel upperPane = new JPanel();
     upperPane.setLayout(new BoxLayout(upperPane, BoxLayout.X_AXIS));
     upperPane.setBorder(new EmptyBorder(4, 4, 4, 4));
@@ -165,7 +162,7 @@ public abstract class AbstractTextMonitor extends AbstractMonitor {
     textField.addActionListener(listener);
     sendButton.addActionListener(listener);
   }
-  
+
   public void onClearCommand(ActionListener listener) {
     clearButton.addActionListener(listener);
   }
@@ -173,41 +170,38 @@ public abstract class AbstractTextMonitor extends AbstractMonitor {
   public void onSerialRateChange(ActionListener listener) {
     serialRates.addActionListener(listener);
   }
-  
-  public void message(final String s) {
-    SwingUtilities.invokeLater(new Runnable() {
-      // Pre-allocate all objects used for streaming data
-      Date t = new Date();
-      String now;
-      StringBuilder out = new StringBuilder(16384);
-      boolean isStartingLine = false;
 
-      public void run() {
-        if (addTimeStampBox.isSelected()) {
-          t.setTime(System.currentTimeMillis());
-          now = logDateFormat.format(t);
-          out.setLength(0);
+  public void message(String msg) {
+    SwingUtilities.invokeLater(() -> updateTextArea(msg));
+  }
 
-          StringTokenizer tokenizer = new StringTokenizer(s, "\n", true);
-          while (tokenizer.hasMoreTokens()) {
-            if (isStartingLine) {
-              out.append(now);
-            }
-            String token = tokenizer.nextToken();
-            out.append(token);
-            // tokenizer returns "\n" as a single token
-            isStartingLine = token.charAt(0) == '\n';
-          }
+  private static final String LINE_SEPARATOR = "\n";
+  private boolean isStartingLine = true;
 
-          textArea.append(out.toString());
-        } else {
-          textArea.append(s);
-        }
+  protected void updateTextArea(String msg) {
+    if (addTimeStampBox.isSelected()) {
+      textArea.append(addTimestamps(msg));
+    } else {
+      textArea.append(msg);
+    }
+    if (autoscrollBox.isSelected()) {
+      textArea.setCaretPosition(textArea.getDocument().getLength());
+    }
+  }
 
-        if (autoscrollBox.isSelected()) {
-          textArea.setCaretPosition(textArea.getDocument().getLength());
-        }
+  private String addTimestamps(String text) {
+    String now = new SimpleDateFormat("HH:mm:ss.SSS -> ").format(new Date());
+    final StringBuilder sb = new StringBuilder(text.length() + now.length());
+    StringTokenizer tokenizer = new StringTokenizer(text, LINE_SEPARATOR, true);
+    while (tokenizer.hasMoreTokens()) {
+      if (isStartingLine) {
+        sb.append(now);
       }
-    });
+      String token = tokenizer.nextToken();
+      sb.append(token);
+      // tokenizer returns "\n" as a single token
+      isStartingLine = token.equals(LINE_SEPARATOR);
+    }
+    return sb.toString();
   }
 }
