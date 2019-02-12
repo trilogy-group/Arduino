@@ -48,7 +48,7 @@ To bind a folder to the created and started DevSpace, it is needed to follow the
 
         devspaces bind Arduino
 
-1. Wait to get all files synced. To see if the sync is finished, open a browser and access http://localhost:49152/. You will see a page like the one below. If the sync is finished, you will see the **Up to date** green message next to the **Remote Device** block (see the [demo]() to get details about that).
+1. Wait to get all files synced. To see if the sync is finished, open a browser and access http://localhost:49152/. You will see a page like the one below. If the sync is finished, you will see the **Up to date** green message next to the **Remote Device** block (see the [demo](https://jira.devfactory.com/secure/attachment/624734/Arduino%20Import.mp4) to get details about that).
 
    * Now, everything that is changed or created inside the local folder or in the `/data` folder inside the container will be synced. The sync is bidirectional. 
 
@@ -62,4 +62,4 @@ To bind a folder to the created and started DevSpace, it is needed to follow the
 
         ant dist
 
-* **Important Note:** Arduino is a Desktop application that uses the GUI of the operational system. DF DevSpaces doesn't support the usage of X11 Server. So, it is not possible to run the built project inside the container. However, after the build, it shows a message with the path to the installer. You can run in the local environment if you want (see the [demo]() to get details about that).
+* **Important Note:** Arduino is a Desktop application that uses the GUI of the operational system. DF DevSpaces doesn't support the usage of X11 Server. So, it is not possible to run the built project inside the container. However, after the build, it shows a message with the path to the installer. You can run in the local environment if you want (see the [demo](https://jira.devfactory.com/secure/attachment/624734/Arduino%20Import.mp4) to get details about that).
