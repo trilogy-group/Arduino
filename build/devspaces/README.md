@@ -62,4 +62,18 @@ To bind a folder to the created and started DevSpace, it is needed to follow the
 
         ant dist
 
-* **Important Note:** Arduino is a Desktop application that uses the GUI of the operational system. DF DevSpaces doesn't support the usage of X11 Server. So, it is not possible to run the built project inside the container. However, after the build, it shows a message with the path to the installer. You can run in the local environment if you want (see the [demo](https://jira.devfactory.com/secure/attachment/624734/Arduino%20Import.mp4) to get details about that).
+* **Important Note:** Arduino is a Desktop application that uses the GUI of the operational system. DF DevSpaces doesn't support the usage of X11 Server. So, it is not possible to run the built project inside the container. However, after the build, it shows a message with the path to the installer. You can run in the local environment, if you want, by following the steps below (see the [demo](https://jira.devfactory.com/secure/attachment/624734/Arduino%20Import.mp4) to get details about that):
+
+    1. Extract the `tar.xz` generated after the build:
+
+                tar -xvf linux/arduino-1.8.9-linux64.tar.xz
+
+    1. Then, go to the extracted folder and run arduino executable:
+
+                cd arduino-1.8.9
+                ./arduino
+
+    * **Note:** Depending on the X11 Server configuration that you are using, maybe the command above throws an error saying `No X11 display variable was set`. To fix it you need to set an environment variable `DISPLAY` as follows. It will configure the current terminal to use the first display (default) that exists on the machine.
+
+                export DISPLAY=:0
+
