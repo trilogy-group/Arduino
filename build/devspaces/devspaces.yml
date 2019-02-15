@@ -1,0 +1,57 @@
+--- # devspaces.yml
+name: Arduino
+description:  Development environment for Arduino project
+
+# If you want to use a different Dockerfile for your DevSpace, provide the path
+# here.
+docker-file: Dockerfile
+
+# If you need additional files when building your Dockerfile, such as some
+# application binaries that your Dockerfile references, list the glob paths to
+# include here. They are relative to this devspaces.yml file.
+docker-build-includes: |
+  **/*
+
+sync-ignore: |
+  .git
+  .idea
+  .DS_Store
+  .data
+  build/*.zip
+  build/*.tar.bz2
+  build/windows/work/
+  build/windows/*.zip
+  build/windows/*.tgz
+  build/windows/*.tar.bz2
+  build/windows/libastylej*
+  build/windows/liblistSerials*
+  build/windows/arduino-*.zip
+  build/windows/dist/*.tar.gz
+  build/windows/dist/*.tar.bz2
+  build/windows/launch4j-*.tgz
+  build/windows/launch4j-*.zip
+  build/windows/launcher/launch4j
+  build/windows/WinAVR-*.zip
+  build/macosx/arduino-*.zip
+  build/macosx/dist/*.tar.gz
+  build/macosx/dist/*.tar.bz2
+  build/macosx/*.tar.bz2
+  build/macosx/libastylej*
+  build/macosx/appbundler*.jar
+  build/macosx/appbundler*.zip
+  build/macosx/appbundler
+  build/macosx/appbundler-1.0ea-arduino?
+  build/macosx/appbundler-1.0ea-arduino*.zip
+  build/macosx/appbundler-1.0ea-upstream*.zip
+  build/linux/work/
+  build/linux/dist/*.tar.gz
+  build/linux/dist/*.tar.bz2
+  build/linux/*.tgz
+  build/linux/*.tar.bz2
+  build/linux/*.zip
+  build/linux/libastylej*
+  build/linux/liblistSerials*
+  build/shared/reference*.zip
+  build/shared/Edison*.zip
+  build/shared/Galileo*.zip
+  build/shared/WiFi101-Updater-ArduinoIDE-Plugin*.zip  
